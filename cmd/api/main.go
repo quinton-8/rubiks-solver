@@ -1,25 +1,40 @@
 package main
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
-	"os"
+	"log"
+	"net/http"
 	"rubiks-solver/internal/solver"
 	"strings"
 )
 
-func main() {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Kociemba Rubik's Solver")
-	fmt.Println("-----------------------")
-	fmt.Println("Enter 54-char string (Order: U, R, F, D, L, B):")
+type SolveRequest struct {
+	CubeString string `json:"cubeString"`
+}
 
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(strings.ToUpper(input))
+type SolveResponse struct {
+	Solution string `json:"solution,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
+func solveHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req SolveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		json.NewEncoder(w).Encode(SolveResponse{Error: "Invalid request payload"})
+		return
+	}
+
+	input := strings.TrimSpace(strings.ToUpper(req.CubeString))
 
 	// 1. Length Validation
 	if len(input) != 54 {
-		fmt.Printf("\033[31mError: Expected 54 characters, got %d\033[0m\n", len(input))
+		json.NewEncoder(w).Encode(SolveResponse{Error: fmt.Sprintf("Expected 54 characters, got %d", len(input))})
 		return
 	}
 
@@ -30,23 +45,37 @@ func main() {
 	}
 
 	if len(counts) != 6 {
-		fmt.Printf("\033[31mError: Found %d unique characters, expected exactly 6 (e.g., U, R, F, D, L, B).\033[0m\n", len(counts))
+		json.NewEncoder(w).Encode(SolveResponse{Error: fmt.Sprintf("Found %d unique characters, expected exactly 6.", len(counts))})
 		return
 	}
 
 	for char, count := range counts {
 		if count != 9 {
-			fmt.Printf("\033[31mValidation Error: Facelet '%c' appears %d times. Each of the 6 colors MUST appear exactly 9 times.\033[0m\n", char, count)
+			json.NewEncoder(w).Encode(SolveResponse{Error: fmt.Sprintf("Facelet '%c' appears %d times. Each must appear exactly 9 times.", char, count)})
 			return
 		}
 	}
 
-	// 3. Solve using the internal/solver package
+	// 3. Solve
 	solution, err := solver.Solve(input)
 	if err != nil {
-		fmt.Printf("\033[31mSolver Error: %v\033[0m\n", err)
+		json.NewEncoder(w).Encode(SolveResponse{Error: err.Error()})
 		return
 	}
 
-	fmt.Printf("\n\033[32mSolution found (%d moves):\033[0m\n%s\n", len(strings.Fields(solution)), solution)
+	json.NewEncoder(w).Encode(SolveResponse{Solution: solution})
+}
+
+func main() {
+	// Serve the static HTML/CSS/JS files
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
+
+	// API Endpoint for the solver
+	http.HandleFunc("/api/solve", solveHandler)
+
+	port := "8080"
+	fmt.Printf("🌐 Interactive Server running on http://localhost:%s\n", port)
+	fmt.Println("Press Ctrl+C to stop.")
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
