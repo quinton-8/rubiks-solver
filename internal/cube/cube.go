@@ -1,113 +1,172 @@
 package cube
 
-import "fmt"
-
-// Cube represents the 54 stickers of a 3x3 Rubik's Cube.
+import (
+	"strings"
+)
+// Cube describes a cube state using Corner/Edge Permutation and Orientation (CEPO).
 type Cube struct {
-	State [54]byte
+	CP    [8]int8  // Corner Permutation (0-7)
+	CO    [8]int8  // Corner Orientation (0-2)
+	EP    [12]int8 // Edge Permutation (0-11)
+	EO    [12]int8 // Edge Orientation (0-1)
+	Move  string   // Last move performed
+	Move2 string   // Move before last
 }
 
-// NewSolvedCube initializes a cube in its solved state.
-// U=White, R=Blue, F=Red, D=Yellow, L=Green, B=Orange
+// NewSolvedCube returns a new solved cube.
 func NewSolvedCube() *Cube {
-	solvedState := "WWWWWWWWWBBBBBBBBBRRRRRRRRRYYYYYYYYYGGGGGGGGGOOOOOOOOO"
-	var c Cube
-	copy(c.State[:], solvedState)
-	return &c
+	c := &Cube{}
+	for i := range c.CP {
+		c.CP[i] = int8(i)
+	}
+	for i := range c.EP {
+		c.EP[i] = int8(i)
+	}
+	return c
 }
 
-// RotateRight performs a 90-degree clockwise turn of the Right (R) face.
-func (c *Cube) RotateRight() {
-	// A temporary copy to hold the old state during rotation
-	old := c.State
-
-	// 1. Rotate the Right face itself (indices 9 to 17)
-	c.State[9], c.State[10], c.State[11] = old[15], old[12], old[9]
-	c.State[12], c.State[14] = old[16], old[10]
-	c.State[15], c.State[16], c.State[17] = old[17], old[14], old[11]
-
-	// 2. Cycle the adjacent edges (Up, Back, Down, Front)
-	// Top (Up) gets Front
-	c.State[2], c.State[5], c.State[8] = old[20], old[23], old[26]
-	// Back gets Top (reversed index mapping due to physical wrapping)
-	c.State[45], c.State[48], c.State[51] = old[8], old[5], old[2]
-	// Bottom (Down) gets Back
-	c.State[29], c.State[32], c.State[35] = old[51], old[48], old[45]
-	// Front gets Bottom
-	c.State[20], c.State[23], c.State[26] = old[29], old[32], old[35]
+// modulo3 handles orientation math: 0 = good, 1 = twisted clockwise, 2 = twisted anti-clockwise.
+func modulo3(n int8) int8 {
+	if n == -1 {
+		return 2
+	}
+	return n % 3
 }
 
-// RotateLeft (L)
-func (c *Cube) RotateLeft() {
-	old := c.State
-	// Face rotation
-	c.State[36], c.State[37], c.State[38] = old[42], old[39], old[36]
-	c.State[39], c.State[41] = old[43], old[37]
-	c.State[42], c.State[43], c.State[44] = old[44], old[41], old[38]
-	// Edges: Up -> Front -> Down -> Back -> Up
-	c.State[0], c.State[3], c.State[6] = old[53], old[50], old[47]
-	c.State[18], c.State[21], c.State[24] = old[0], old[3], old[6]
-	c.State[27], c.State[30], c.State[33] = old[18], old[21], old[24]
-	c.State[47], c.State[50], c.State[53] = old[33], old[30], old[27]
-}
-
-// RotateUp (U)
+// RotateUp (U) rotates the top face clockwise.
 func (c *Cube) RotateUp() {
-	old := c.State
-	// Face rotation
-	c.State[0], c.State[1], c.State[2] = old[6], old[3], old[0]
-	c.State[3], c.State[5] = old[7], old[1]
-	c.State[6], c.State[7], c.State[8] = old[8], old[5], old[2]
-	// Edges: Front -> Left -> Back -> Right -> Front
-	c.State[18], c.State[19], c.State[20] = old[9], old[10], old[11]
-	c.State[36], c.State[37], c.State[38] = old[18], old[19], old[20]
-	c.State[45], c.State[46], c.State[47] = old[36], old[37], old[38]
-	c.State[9], c.State[10], c.State[11] = old[45], old[46], old[47]
+	// corner permutation
+	tmpC := c.CP[0]
+	c.CP[0] = c.CP[4]
+	c.CP[4] = c.CP[3]
+	c.CP[3] = c.CP[7]
+	c.CP[7] = tmpC
+	// edge permutation
+	tmpE := c.EP[0]
+	c.EP[0] = c.EP[8]
+	c.EP[8] = c.EP[3]
+	c.EP[3] = c.EP[11]
+	c.EP[11] = tmpE
+	// corner orientation
+	c.CO[c.CP[0]] = modulo3(c.CO[c.CP[0]] - 1)
+	c.CO[c.CP[3]] = modulo3(c.CO[c.CP[3]] - 1)
+	c.CO[c.CP[4]] = modulo3(c.CO[c.CP[4]] + 1)
+	c.CO[c.CP[7]] = modulo3(c.CO[c.CP[7]] + 1)
+	// edge orientation
+	c.EO[c.EP[0]] = (c.EO[c.EP[0]] + 1) % 2
+	c.EO[c.EP[3]] = (c.EO[c.EP[3]] + 1) % 2
+	c.EO[c.EP[8]] = (c.EO[c.EP[8]] + 1) % 2
+	c.EO[c.EP[11]] = (c.EO[c.EP[11]] + 1) % 2
 }
 
-// RotateDown (D)
+// RotateDown (D) rotates the bottom face clockwise.
 func (c *Cube) RotateDown() {
-	old := c.State
-	// Face rotation
-	c.State[27], c.State[28], c.State[29] = old[33], old[30], old[27]
-	c.State[30], c.State[32] = old[34], old[28]
-	c.State[33], c.State[34], c.State[35] = old[35], old[32], old[29]
-	// Edges: Front -> Right -> Back -> Left -> Front
-	c.State[24], c.State[25], c.State[26] = old[42], old[43], old[44]
-	c.State[15], c.State[16], c.State[17] = old[24], old[25], old[26]
-	c.State[51], c.State[52], c.State[53] = old[15], old[16], old[17]
-	c.State[42], c.State[43], c.State[44] = old[51], old[52], old[53]
+	tmpC := c.CP[1]
+	c.CP[1] = c.CP[5]
+	c.CP[5] = c.CP[2]
+	c.CP[2] = c.CP[6]
+	c.CP[6] = tmpC
+	tmpE := c.EP[1]
+	c.EP[1] = c.EP[10]
+	c.EP[10] = c.EP[2]
+	c.EP[2] = c.EP[9]
+	c.EP[9] = tmpE
+	c.CO[c.CP[1]] = modulo3(c.CO[c.CP[1]] - 1)
+	c.CO[c.CP[2]] = modulo3(c.CO[c.CP[2]] - 1)
+	c.CO[c.CP[5]] = modulo3(c.CO[c.CP[5]] + 1)
+	c.CO[c.CP[6]] = modulo3(c.CO[c.CP[6]] + 1)
+	c.EO[c.EP[1]] = (c.EO[c.EP[1]] + 1) % 2
+	c.EO[c.EP[10]] = (c.EO[c.EP[10]] + 1) % 2
+	c.EO[c.EP[2]] = (c.EO[c.EP[2]] + 1) % 2
+	c.EO[c.EP[9]] = (c.EO[c.EP[9]] + 1) % 2
 }
 
-// RotateFront (F)
+// RotateFront (F) rotates the front face clockwise.
 func (c *Cube) RotateFront() {
-	old := c.State
-	// Face rotation
-	c.State[18], c.State[19], c.State[20] = old[24], old[21], old[18]
-	c.State[21], c.State[23] = old[25], old[19]
-	c.State[24], c.State[25], c.State[26] = old[26], old[23], old[20]
-	// Edges: Up -> Right -> Down -> Left -> Up
-	c.State[6], c.State[7], c.State[8] = old[44], old[41], old[38]
-	c.State[9], c.State[12], old[15] = old[6], old[7], old[8]
-	c.State[27], c.State[28], c.State[29] = old[15], old[12], old[9]
-	c.State[38], c.State[41], c.State[44] = old[27], old[28], old[29]
+	tmpC := c.CP[4]
+	c.CP[4] = c.CP[1]
+	c.CP[1] = c.CP[6]
+	c.CP[6] = c.CP[3]
+	c.CP[3] = tmpC
+	tmpE := c.EP[5]
+	c.EP[5] = c.EP[9]
+	c.EP[9] = c.EP[6]
+	c.EP[6] = c.EP[8]
+	c.EP[8] = tmpE
+	c.CO[c.CP[1]] = modulo3(c.CO[c.CP[1]] + 1)
+	c.CO[c.CP[3]] = modulo3(c.CO[c.CP[3]] + 1)
+	c.CO[c.CP[4]] = modulo3(c.CO[c.CP[4]] - 1)
+	c.CO[c.CP[6]] = modulo3(c.CO[c.CP[6]] - 1)
 }
 
-// RotateBack (B)
+// RotateBack (B) rotates the back face clockwise.
 func (c *Cube) RotateBack() {
-	old := c.State
-	// Face rotation
-	c.State[45], c.State[46], c.State[47] = old[51], old[48], old[45]
-	c.State[48], c.State[50] = old[52], old[46]
-	c.State[51], c.State[52], c.State[53] = old[53], old[50], old[47]
-	// Edges: Up -> Left -> Down -> Right -> Up
-	c.State[0], c.State[1], c.State[2] = old[11], old[14], old[17]
-	c.State[36], c.State[39], c.State[42] = old[0], old[1], old[2]
-	c.State[33], c.State[34], c.State[35] = old[36], old[39], old[42]
-	c.State[11], c.State[14], c.State[17] = old[33], old[34], old[35]
+	tmpC := c.CP[7]
+	c.CP[7] = c.CP[2]
+	c.CP[2] = c.CP[5]
+	c.CP[5] = c.CP[0]
+	c.CP[0] = tmpC
+	tmpE := c.EP[7]
+	c.EP[7] = c.EP[10]
+	c.EP[10] = c.EP[4]
+	c.EP[4] = c.EP[11]
+	c.EP[11] = tmpE
+	c.CO[c.CP[0]] = modulo3(c.CO[c.CP[0]] + 1)
+	c.CO[c.CP[2]] = modulo3(c.CO[c.CP[2]] + 1)
+	c.CO[c.CP[5]] = modulo3(c.CO[c.CP[5]] - 1)
+	c.CO[c.CP[7]] = modulo3(c.CO[c.CP[7]] - 1)
 }
 
-// Print outputs the current string state of the cube.
-func (c *Cube) Print() {
-	fmt.Println(string(c.State[:]))
+// RotateLeft (L) rotates the left face clockwise.
+func (c *Cube) RotateLeft() {
+	tmpC := c.CP[0]
+	c.CP[0] = c.CP[5]
+	c.CP[5] = c.CP[1]
+	c.CP[1] = c.CP[4]
+	c.CP[4] = tmpC
+	tmpE := c.EP[4]
+	c.EP[4] = c.EP[1]
+	c.EP[1] = c.EP[5]
+	c.EP[5] = c.EP[0]
+	c.EP[0] = tmpE
+}
+
+// RotateRight (R) rotates the right face clockwise.
+func (c *Cube) RotateRight() {
+	tmpC := c.CP[3]
+	c.CP[3] = c.CP[6]
+	c.CP[6] = c.CP[2]
+	c.CP[2] = c.CP[7]
+	c.CP[7] = tmpC
+	tmpE := c.EP[6]
+	c.EP[6] = c.EP[2]
+	c.EP[2] = c.EP[7]
+	c.EP[7] = c.EP[3]
+	c.EP[3] = tmpE
+}
+
+func (c *Cube) ApplyMoves(movesStr string) {
+	sequence := strings.Fields(movesStr)
+	for _, move := range sequence {
+		switch move {
+		case "U": c.RotateUp()
+		case "U2": c.RotateUp(); c.RotateUp()
+		case "U'": c.RotateUp(); c.RotateUp(); c.RotateUp()
+		// Repeat for D, L, R, F, B...
+		}
+		c.Move2 = c.Move
+		c.Move = move
+	}
+}
+
+// ListMoves returns valid moves for the current subgroup
+func ListMoves(c *Cube, subgroup int8) []string {
+	var moves []string
+	if subgroup == 0 {
+		moves = []string{"U", "U'", "U2", "D", "D'", "D2", "R", "R'", "R2", "L", "L'", "L2", "F", "F'", "F2", "B", "B'", "B2"}
+	} else if subgroup == 3 {
+		moves = []string{"U2", "D2", "R2", "L2", "F2", "B2"} // Only double turns
+	}
+	// ... logic for subgroups 1 and 2
+	return moves
 }
