@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Rubik's Solver</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Rubik's Cube Solver</h1>
+        <p>Select a color from the palette and click on the grid to paint the cube. The centers are fixed.</p>
+        
+        <div class="palette" id="palette">
+            </div>
+
+        <div class="cube-net" id="cube-net">
+            <div class="empty"></div>
+            <div class="face" id="face-U" data-face="U"></div>
+            <div class="empty"></div>
+            <div class="empty"></div>
+            
+            <div class="face" id="face-L" data-face="L"></div>
+            <div class="face" id="face-F" data-face="F"></div>
+            <div class="face" id="face-R" data-face="R"></div>
+            <div class="face" id="face-B" data-face="B"></div>
+            
+            <div class="empty"></div>
+            <div class="face" id="face-D" data-face="D"></div>
+            <div class="empty"></div>
+            <div class="empty"></div>
+        </div>
+
+        <div class="controls">
+            <button id="btn-reset">Reset to Solved</button>
+            <button id="btn-solve" class="primary">Solve Cube</button>
+        </div>
+
+        <div class="output-box" id="output-box">
+            <h3>Solution:</h3>
+            <div id="result">Awaiting input...</div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
