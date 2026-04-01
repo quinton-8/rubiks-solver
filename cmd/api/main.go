@@ -4,35 +4,49 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
-	"rubiks-solver/internal/cube"
 	"rubiks-solver/internal/solver"
+	"strings"
 )
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Enter the 54-character scrambled cube state:")
+	fmt.Println("Kociemba Rubik's Solver")
+	fmt.Println("-----------------------")
+	fmt.Println("Enter 54-char string (Order: U, R, F, D, L, B):")
 
-	// Read the scrambled string from the terminal
 	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
+	input = strings.TrimSpace(strings.ToUpper(input))
 
+	// 1. Length Validation
 	if len(input) != 54 {
-		fmt.Printf("Error: Expected 54 characters, got %d\n", len(input))
+		fmt.Printf("\033[31mError: Expected 54 characters, got %d\033[0m\n", len(input))
 		return
 	}
 
-	// Initialize the cube state
-	myCube := &cube.Cube{}
-	copy(myCube.State[:], input)
+	// 2. Strict Facelet Count Validation
+	counts := make(map[rune]int)
+	for _, char := range input {
+		counts[char]++
+	}
 
-	// Solve and output the result
-	solution, err := solver.Solve(myCube)
+	if len(counts) != 6 {
+		fmt.Printf("\033[31mError: Found %d unique characters, expected exactly 6 (e.g., U, R, F, D, L, B).\033[0m\n", len(counts))
+		return
+	}
+
+	for char, count := range counts {
+		if count != 9 {
+			fmt.Printf("\033[31mValidation Error: Facelet '%c' appears %d times. Each of the 6 colors MUST appear exactly 9 times.\033[0m\n", char, count)
+			return
+		}
+	}
+
+	// 3. Solve using the internal/solver package
+	solution, err := solver.Solve(input)
 	if err != nil {
-		fmt.Println("Error solving cube:", err)
+		fmt.Printf("\033[31mSolver Error: %v\033[0m\n", err)
 		return
 	}
 
-	fmt.Println("\nMinimum rotations required:")
-	fmt.Println(strings.Join(solution, " "))
+	fmt.Printf("\n\033[32mSolution found (%d moves):\033[0m\n%s\n", len(strings.Fields(solution)), solution)
 }
