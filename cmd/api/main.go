@@ -76,13 +76,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	fs := http.FileServer(http.Dir("static"))
+fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
 	http.HandleFunc("/api/solve", solveHandler)
 
-	port := "8080"
+	// Use the cloud provider's port if available, otherwise default to 8080
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	fmt.Printf("\n🟢 SUCCESS: Found static files!\n")
-	fmt.Printf("🌐 Interactive Server running on http://localhost:%s\n", port)
-	fmt.Println("Press Ctrl+C to stop.")
+	fmt.Printf("🌐 Server running on port: %s\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
