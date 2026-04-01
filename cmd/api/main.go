@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"rubiks-solver/internal/solver"
 	"strings"
 )
@@ -32,13 +33,11 @@ func solveHandler(w http.ResponseWriter, r *http.Request) {
 
 	input := strings.TrimSpace(strings.ToUpper(req.CubeString))
 
-	// 1. Length Validation
 	if len(input) != 54 {
 		json.NewEncoder(w).Encode(SolveResponse{Error: fmt.Sprintf("Expected 54 characters, got %d", len(input))})
 		return
 	}
 
-	// 2. Strict Facelet Count Validation
 	counts := make(map[rune]int)
 	for _, char := range input {
 		counts[char]++
@@ -56,7 +55,6 @@ func solveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 3. Solve
 	solution, err := solver.Solve(input)
 	if err != nil {
 		json.NewEncoder(w).Encode(SolveResponse{Error: err.Error()})
@@ -67,14 +65,23 @@ func solveHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// Serve the static HTML/CSS/JS files
+	// SANITY CHECK: Does the static folder actually exist where Go is looking?
+	if _, err := os.Stat("static/index.html"); os.IsNotExist(err) {
+		fmt.Println("\033[31m🚨 CRITICAL ERROR: Cannot find static/index.html\033[0m")
+		fmt.Println("Make sure you are in the root 'rubiks-solver' directory, NOT inside 'cmd' or 'api'!")
+		fmt.Println("Your current folder structure MUST look like this:")
+		fmt.Println("  rubiks-solver/")
+		fmt.Println("  ├── cmd/")
+		fmt.Println("  └── static/")
+		os.Exit(1)
+	}
+
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
-
-	// API Endpoint for the solver
 	http.HandleFunc("/api/solve", solveHandler)
 
 	port := "8080"
+	fmt.Printf("\n🟢 SUCCESS: Found static files!\n")
 	fmt.Printf("🌐 Interactive Server running on http://localhost:%s\n", port)
 	fmt.Println("Press Ctrl+C to stop.")
 	log.Fatal(http.ListenAndServe(":"+port, nil))
